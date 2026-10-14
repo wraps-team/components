@@ -34,6 +34,16 @@ export interface Message {
   html?: string | null;
   text?: string | null;
   attachments: Attachment[];
+  /** RFC 5322 Message-ID, with or without angle brackets. */
+  messageId?: string | null;
+  /** Message-ID this message replies to. */
+  inReplyTo?: string | null;
+  /** Message-IDs of the thread's ancestors, oldest first. */
+  references?: string[];
+  /** Explicit thread key from your backend (e.g. a Wraps signed conversation id). Wins over header matching. */
+  conversationId?: string | null;
+  /** Inbound messages with `read: false` make their thread unread. Default read. */
+  read?: boolean;
 }
 
 export interface Thread {
@@ -45,8 +55,25 @@ export interface Thread {
   lastMessageAt: string;
   unread: boolean;
   starred?: boolean;
+  archived?: boolean;
   messages: Message[];
 }
+
+/** Thread-level state your backend persists; passed to `groupIntoThreads`. */
+export interface ThreadState {
+  starred?: boolean;
+  archived?: boolean;
+}
+
+export type ThreadAction =
+  | "read"
+  | "unread"
+  | "archive"
+  | "unarchive"
+  | "star"
+  | "unstar";
+
+export type Folder = "inbox" | "starred" | "archived";
 
 export interface Draft {
   to: string;

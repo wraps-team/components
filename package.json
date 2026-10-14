@@ -9,7 +9,8 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "typecheck": "tsc --noEmit",
-    "registry:build": "shadcn build"
+    "registry:build": "shadcn build",
+    "test": "vitest run"
   },
   "dependencies": {
     "@radix-ui/react-label": "^2.1.7",
@@ -26,13 +27,14 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.3.5",
     "@tailwindcss/postcss": "^4.1.11",
     "@types/node": "^20.19.9",
     "@types/react": "19.1.2",
     "@types/react-dom": "19.1.2",
     "tailwindcss": "^4.1.11",
     "typescript": "^5.9.2",
-    "@biomejs/biome": "^2.3.5"
+    "vitest": "^5.0.4"
   },
   "packageManager": "pnpm@11.3.0",
   "license": "MIT"

@@ -1,16 +1,27 @@
 "use client";
 
-import { Paperclip } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  ChevronsUpDown,
+  Mail,
+  MailOpen,
+  Paperclip,
+  Star,
+} from "lucide-react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { EmailFrame } from "./email-frame";
 import { useFormattedDate } from "./format";
-import type { Message, Thread } from "./types";
+import { snippetOf } from "./thread";
+import type { Message, Thread, ThreadAction } from "./types";
 
 export interface MessageViewProps {
   thread: Thread;
   onReply?: (message: Message) => void;
+  /** Toolbar actions: archive, mark read/unread, star. */
+  onAction?: (thread: Thread, action: ThreadAction) => void;
   className?: string;
 }
 
@@ -20,11 +31,30 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+// Long threads open on the latest message (plus anything unread); short
+// threads open fully.
+function initialExpanded(thread: Thread): Set<string> {
+  if (thread.messages.length <= 2) {
+    return new Set(thread.messages.map((m) => m.id));
+  }
+  const ids = new Set<string>();
+  const last = thread.messages[thread.messages.length - 1];
+  if (last) ids.add(last.id);
+  for (const m of thread.messages) {
+    if (m.direction === "inbound" && m.read === false) ids.add(m.id);
+  }
+  return ids;
+}
+
 function MessageCard({
   message,
+  expanded,
+  onToggle,
   onReply,
 }: {
   message: Message;
+  expanded: boolean;
+  onToggle: () => void;
   onReply?: (message: Message) => void;
 }) {
   const [allowImages, setAllowImages] = React.useState(false);
@@ -33,10 +63,38 @@ function MessageCard({
   const when = useFormattedDate(message.date, "full");
   const downloadable = message.attachments.filter((a) => !a.inline);
 
+  if (!expanded) {
+    return (
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={false}
+        className="flex w-full items-center gap-3 rounded-lg border bg-card px-4 py-3 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+      >
+        <span className="shrink-0 text-sm font-medium">{from}</span>
+        <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+          {snippetOf(message, 100)}
+        </span>
+        <time
+          dateTime={message.date}
+          className="shrink-0 text-xs text-muted-foreground"
+        >
+          {when}
+        </time>
+      </button>
+    );
+  }
+
   return (
     <article className="rounded-lg border bg-card">
       <header className="flex items-start gap-3 border-b p-4">
-        <div className="min-w-0 flex-1">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={true}
+          aria-label="Collapse message"
+          className="min-w-0 flex-1 rounded-sm text-left focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        >
           <p className="truncate text-sm font-medium">
             {from}
             {message.from.name && (
@@ -49,7 +107,7 @@ function MessageCard({
           <p className="truncate text-xs text-muted-foreground">
             to {message.to.map((a) => a.name || a.address).join(", ")}
           </p>
-        </div>
+        </button>
         <time
           dateTime={message.date}
           className="shrink-0 text-xs text-muted-foreground"
@@ -116,12 +174,106 @@ function MessageCard({
   );
 }
 
-export function MessageView({ thread, onReply, className }: MessageViewProps) {
+function ToolbarButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+    >
+      {children}
+    </Button>
+  );
+}
+
+/**
+ * Pass `key={thread.id}` so expansion state resets when the thread changes.
+ */
+export function MessageView({
+  thread,
+  onReply,
+  onAction,
+  className,
+}: MessageViewProps) {
+  const [expanded, setExpanded] = React.useState(() => initialExpanded(thread));
+  const allExpanded = thread.messages.every((m) => expanded.has(m.id));
+
+  function toggle(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   return (
     <div className={cn("flex flex-col gap-4 overflow-y-auto p-4", className)}>
-      <h2 className="text-lg font-semibold">{thread.subject}</h2>
+      <div className="flex items-start gap-2">
+        <h2 className="min-w-0 flex-1 text-lg font-semibold">
+          {thread.subject}
+        </h2>
+        <div className="flex shrink-0 items-center">
+          {!allExpanded && (
+            <ToolbarButton
+              label="Expand all"
+              onClick={() =>
+                setExpanded(new Set(thread.messages.map((m) => m.id)))
+              }
+            >
+              <ChevronsUpDown />
+            </ToolbarButton>
+          )}
+          {onAction && (
+            <>
+              <ToolbarButton
+                label={thread.starred ? "Unstar" : "Star"}
+                onClick={() =>
+                  onAction(thread, thread.starred ? "unstar" : "star")
+                }
+              >
+                <Star
+                  className={cn(thread.starred && "fill-current text-primary")}
+                />
+              </ToolbarButton>
+              <ToolbarButton
+                label={thread.unread ? "Mark read" : "Mark unread"}
+                onClick={() =>
+                  onAction(thread, thread.unread ? "read" : "unread")
+                }
+              >
+                {thread.unread ? <MailOpen /> : <Mail />}
+              </ToolbarButton>
+              <ToolbarButton
+                label={thread.archived ? "Move to inbox" : "Archive"}
+                onClick={() =>
+                  onAction(thread, thread.archived ? "unarchive" : "archive")
+                }
+              >
+                {thread.archived ? <ArchiveRestore /> : <Archive />}
+              </ToolbarButton>
+            </>
+          )}
+        </div>
+      </div>
       {thread.messages.map((message) => (
-        <MessageCard key={message.id} message={message} onReply={onReply} />
+        <MessageCard
+          key={message.id}
+          message={message}
+          expanded={expanded.has(message.id)}
+          onToggle={() => toggle(message.id)}
+          onReply={onReply}
+        />
       ))}
     </div>
   );

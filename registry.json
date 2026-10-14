@@ -20,7 +20,7 @@
       "name": "inbox",
       "type": "registry:block",
       "title": "Inbox",
-      "description": "Backend-agnostic email inbox: thread list, message view, composer, and the Inbox block that wires them together. Takes typed props; bring your own data source.",
+      "description": "Backend-agnostic email inbox: threading (groupIntoThreads), folders, read/archive/star, date-grouped thread list, collapsible message view, composer, and the Inbox block that wires them together. Takes typed props; bring your own data source.",
       "dependencies": ["lucide-react"],
       "registryDependencies": [
         "button",
@@ -38,6 +38,11 @@
           "path": "registry/inbox/format.ts",
           "type": "registry:lib",
           "target": "components/inbox/format.ts"
+        },
+        {
+          "path": "registry/inbox/thread.ts",
+          "type": "registry:lib",
+          "target": "components/inbox/thread.ts"
         },
         {
           "path": "registry/inbox/thread-list.tsx",

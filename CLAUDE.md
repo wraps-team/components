@@ -16,7 +16,7 @@ mise trust && mise install   # Node 22
 pnpm install
 pnpm dev                     # preview site
 pnpm registry:build          # registry.json -> public/r/*.json
-pnpm lint | pnpm typecheck | pnpm build
+pnpm lint | pnpm typecheck | pnpm test | pnpm build
 ```
 
 ## Rules
@@ -25,7 +25,9 @@ pnpm lint | pnpm typecheck | pnpm build
 2. **Types are backend-agnostic.** Components take `Thread`/`Message`/`Draft` props and callbacks (`onSend`, `onOpenThread`). No fetching, no provider imports in registry items. Provider mapping belongs in adapters.
 3. **Semantic tokens only** (`bg-background`, `text-muted-foreground`, …) — no hex or palette classes — so installs follow the consumer's theme. Email *content* inside `EmailFrame` is the one exception; it must render as the sender intended.
 4. **Verify through install, not just build.** The contract is `shadcn add <url>` into a fresh Next app that then type-checks and builds. Run it before shipping a registry change.
-5. **Cross-item `registryDependencies` use absolute URLs** (`https://components.wraps.dev/r/<name>.json`). For local testing, serve a copy of `public/r` with the host rewritten to localhost.
+5. **Threading logic is pure and tested.** `registry/inbox/thread.ts` has no React and no I/O; every grouping rule has a case in `thread.test.ts`. Change a rule, change the test first. Tests are not part of any registry item.
+6. **Registry code must be portable.** It's copied into projects with unknown `tsconfig` targets: no `findLast`, `at()`, or other ES2023+ APIs.
+7. **Cross-item `registryDependencies` use absolute URLs** (`https://components.wraps.dev/r/<name>.json`). For local testing, serve a copy of `public/r` with the host rewritten to localhost.
 
 ## Quality bar
 
