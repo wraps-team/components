@@ -99,7 +99,7 @@ export const mockMessages: Message[] = [
     to: [me],
     subject: "Re: Launch checklist",
     date: "2026-10-13T10:15:00.000Z",
-    text: "Sounds good — shipping Thursday.",
+    text: "Sounds good — shipping Thursday.\n\nOn Tue, Oct 12, 2026 at 7:40 AM You <you@example.com> wrote:\n> Changelog is done. I'll write the migration note tonight.\n>\n> On Mon, Oct 12, 2026 at 5:15 AM Sam wrote:\n>> Looking at it now.",
     messageId: "<launch-4@example.com>",
     inReplyTo: "<launch-3@example.com>",
     references: [
@@ -129,7 +129,7 @@ export const mockMessages: Message[] = [
     to: [{ address: "ap@globex.test", name: "Globex AP" }],
     subject: "Re: Q3 invoice",
     date: "2026-10-09T13:20:00.000Z",
-    text: "Received, thanks. Payment is scheduled for the 25th.",
+    html: '<div>Received, thanks. Payment is scheduled for the 25th.</div><div class="gmail_quote"><div>On Thu, Oct 8, 2026 at 11:00 AM Globex AP wrote:</div><blockquote class="gmail_quote" style="margin:0 0 0 .8ex;border-left:1px solid #ccc;padding-left:1ex">Attached is the Q3 invoice. Net 30.</blockquote></div>',
     attachments: [],
   },
   {

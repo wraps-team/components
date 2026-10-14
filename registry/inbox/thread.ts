@@ -215,3 +215,61 @@ export function groupByDate(threads: Thread[], now: Date): ThreadGroup[] {
   }
   return result.filter((g) => g.threads.length > 0);
 }
+
+export interface QuotedSplit {
+  /** The new text of the message. */
+  body: string;
+  /** The quoted history below it ('' when there is none). */
+  quoted: string;
+}
+
+/**
+ * Split a plain-text message into its new text and the quoted reply history.
+ * Recognizes "On … wrote:", "-----Original Message-----", Outlook-style
+ * From/Sent headers, and trailing `>` blocks. If nothing precedes the marker
+ * (e.g. a pure forward) the whole message is kept as the body.
+ */
+export function splitQuoted(text: string): QuotedSplit {
+  const lines = text.split(/\r?\n/);
+  const markers: number[] = [];
+
+  lines.forEach((line, i) => {
+    const next = lines[i + 1] ?? "";
+    if (/^-{2,}\s*(original message|forwarded message)\s*-{2,}\s*$/i.test(line))
+      markers.push(i);
+    else if (/^on\s.{4,200}wrote:\s*$/i.test(line)) markers.push(i);
+    else if (/^on\s.{4,200}$/i.test(line) && /wrote:\s*$/i.test(next))
+      markers.push(i);
+    else if (
+      /^from:\s/i.test(line) &&
+      lines.slice(i + 1, i + 5).some((l) => /^(sent|date):\s/i.test(l))
+    )
+      markers.push(i);
+  });
+
+  // A trailing run of ">" lines (blank lines allowed between them).
+  let end = lines.length;
+  while (end > 0 && lines[end - 1]?.trim() === "") end -= 1;
+  let start = end;
+  while (
+    start > 0 &&
+    (lines[start - 1]?.trim() === "" || lines[start - 1]?.startsWith(">"))
+  )
+    start -= 1;
+  while (start < end && !lines[start]?.startsWith(">")) start += 1;
+  if (start < end) markers.push(start);
+
+  const at = markers.length ? Math.min(...markers) : -1;
+  if (at < 0) return { body: text, quoted: "" };
+  const body = lines.slice(0, at).join("\n").trimEnd();
+  if (!body.trim()) return { body: text, quoted: "" };
+  return { body, quoted: lines.slice(at).join("\n").trim() };
+}
+
+const QUOTE_HTML_MARKERS =
+  /class\s*=\s*["'][^"']*\b(gmail_quote|yahoo_quoted|moz-cite-prefix)\b|<blockquote\b[^>]*type\s*=\s*["']?cite|id\s*=\s*["'](divRplyFwdMsg|appendonsend)["']/i;
+
+/** True when an HTML message contains quoted reply history we know how to hide. */
+export function hasQuotedHtml(html: string): boolean {
+  return QUOTE_HTML_MARKERS.test(html);
+}

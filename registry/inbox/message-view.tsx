@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { EmailFrame } from "./email-frame";
 import { useFormattedDate } from "./format";
-import { snippetOf } from "./thread";
+import { hasQuotedHtml, snippetOf, splitQuoted } from "./thread";
 import type { Message, Thread, ThreadAction } from "./types";
 
 export interface MessageViewProps {
@@ -59,6 +59,14 @@ function MessageCard({
 }) {
   const [allowImages, setAllowImages] = React.useState(false);
   const [blocked, setBlocked] = React.useState(false);
+  const [showQuoted, setShowQuoted] = React.useState(false);
+  const split = React.useMemo(
+    () => (message.html ? null : splitQuoted(message.text ?? "")),
+    [message.html, message.text],
+  );
+  const hasQuoted = message.html
+    ? hasQuotedHtml(message.html)
+    : Boolean(split?.quoted);
   const from = message.from.name || message.from.address;
   const when = useFormattedDate(message.date, "full");
   const downloadable = message.attachments.filter((a) => !a.inline);
@@ -135,12 +143,33 @@ function MessageCard({
           html={message.html}
           attachments={message.attachments}
           allowRemoteImages={allowImages}
+          collapseQuoted={!showQuoted}
           onRemoteImagesBlocked={setBlocked}
         />
       ) : (
-        <pre className="whitespace-pre-wrap break-words p-4 font-sans text-sm">
-          {message.text}
-        </pre>
+        <div className="p-4 text-sm">
+          <pre className="whitespace-pre-wrap break-words font-sans">
+            {split?.body}
+          </pre>
+          {showQuoted && split?.quoted && (
+            <pre className="mt-3 whitespace-pre-wrap break-words border-l-2 pl-3 font-sans text-muted-foreground">
+              {split.quoted}
+            </pre>
+          )}
+        </div>
+      )}
+
+      {hasQuoted && (
+        <div className="border-t px-4 py-1.5">
+          <button
+            type="button"
+            aria-expanded={showQuoted}
+            onClick={() => setShowQuoted((v) => !v)}
+            className="rounded-sm text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          >
+            {showQuoted ? "Hide quoted text" : "Show quoted text"}
+          </button>
+        </div>
       )}
 
       {downloadable.length > 0 && (

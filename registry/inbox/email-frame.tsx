@@ -35,6 +35,11 @@ export interface EmailFrameProps {
   attachments?: EmailFrameAttachment[];
   /** Load images from the network. Default false. */
   allowRemoteImages?: boolean;
+  /**
+   * Hide quoted reply history (Gmail, Apple Mail/Thunderbird, Yahoo, Outlook
+   * markers) with CSS. A heuristic: unknown clients' quoting stays visible.
+   */
+  collapseQuoted?: boolean;
   /** Called once if the message contains remote images that were blocked. */
   onRemoteImagesBlocked?: (blocked: boolean) => void;
   className?: string;
@@ -69,10 +74,14 @@ function originOf(url: string): string | null {
   }
 }
 
+const HIDE_QUOTED =
+  '.gmail_quote,.gmail_extra,.yahoo_quoted,.moz-cite-prefix,blockquote[type="cite"],#divRplyFwdMsg,#divRplyFwdMsg~*,#appendonsend,#appendonsend~*{display:none!important}';
+
 export function buildSrcDoc(
   html: string,
   attachments: EmailFrameAttachment[],
   allowRemoteImages: boolean,
+  collapseQuoted = false,
 ): string {
   const cids = new Map<string, string>();
   const imgOrigins = new Set<string>();
@@ -99,13 +108,14 @@ export function buildSrcDoc(
     "form-action 'none'",
   ].join("; ");
 
-  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${escapeAttr(csp)}"><meta name="viewport" content="width=device-width,initial-scale=1"><base target="_blank"><style>html,body{margin:0;padding:0;background:#fff;color:#111;font:14px/1.5 system-ui,sans-serif;overflow-wrap:anywhere}body{display:flow-root}img{max-width:100%;height:auto}</style></head><body>${body}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${escapeAttr(csp)}"><meta name="viewport" content="width=device-width,initial-scale=1"><base target="_blank"><style>html,body{margin:0;padding:0;background:#fff;color:#111;font:14px/1.5 system-ui,sans-serif;overflow-wrap:anywhere}body{display:flow-root}img{max-width:100%;height:auto}${collapseQuoted ? HIDE_QUOTED : ""}</style></head><body>${body}</body></html>`;
 }
 
 export function EmailFrame({
   html,
   attachments = [],
   allowRemoteImages = false,
+  collapseQuoted = false,
   onRemoteImagesBlocked,
   className,
 }: EmailFrameProps) {
@@ -113,8 +123,8 @@ export function EmailFrame({
   const [height, setHeight] = React.useState(120);
 
   const srcDoc = React.useMemo(
-    () => buildSrcDoc(html, attachments, allowRemoteImages),
-    [html, attachments, allowRemoteImages],
+    () => buildSrcDoc(html, attachments, allowRemoteImages, collapseQuoted),
+    [html, attachments, allowRemoteImages, collapseQuoted],
   );
 
   React.useEffect(() => {

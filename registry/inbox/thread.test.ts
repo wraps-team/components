@@ -4,8 +4,10 @@ import {
   filterThreads,
   groupByDate,
   groupIntoThreads,
+  hasQuotedHtml,
   normalizeSubject,
   snippetOf,
+  splitQuoted,
 } from "./thread";
 import type { Message, Thread } from "./types";
 
@@ -210,5 +212,63 @@ describe("groupByDate", () => {
       ["Previous 30 days", ["d"]],
       ["Older", ["e"]],
     ]);
+  });
+});
+
+describe("splitQuoted", () => {
+  it("splits at 'On … wrote:'", () => {
+    const r = splitQuoted(
+      "Sounds good.\n\nOn Tue, Oct 13, 2026 at 9:00 AM Sam <s@x.com> wrote:\n> Can we ship?\n> Thursday?",
+    );
+    expect(r.body).toBe("Sounds good.");
+    expect(r.quoted.startsWith("On Tue")).toBe(true);
+  });
+
+  it("handles a wrapped 'On … wrote:' line", () => {
+    const r = splitQuoted(
+      "Yes.\n\nOn Tue, Oct 13, 2026 at 9:00 AM Sam <s@x.com>\nwrote:\n> hi",
+    );
+    expect(r.body).toBe("Yes.");
+    expect(r.quoted).toContain("> hi");
+  });
+
+  it("splits at Outlook headers and Original Message rules", () => {
+    expect(
+      splitQuoted(
+        "Thanks!\n\nFrom: Sam\nSent: Tuesday\nTo: me\nSubject: Hi\n\nhello",
+      ).body,
+    ).toBe("Thanks!");
+    expect(
+      splitQuoted("Done.\n\n-----Original Message-----\nFrom: a").body,
+    ).toBe("Done.");
+  });
+
+  it("splits a trailing > block", () => {
+    const r = splitQuoted("Agreed.\n\n> earlier\n>\n> more");
+    expect(r.body).toBe("Agreed.");
+    expect(r.quoted).toBe("> earlier\n>\n> more");
+  });
+
+  it("leaves ordinary text, interleaved quotes and pure forwards intact", () => {
+    expect(splitQuoted("Just a note.\nNothing quoted.")).toEqual({
+      body: "Just a note.\nNothing quoted.",
+      quoted: "",
+    });
+    const interleaved = "> point one\nI agree.\n> point two\nAlso agree.";
+    expect(splitQuoted(interleaved).quoted).toBe("");
+    const forward = "-----Original Message-----\nFrom: a\nSent: b\n\nhi";
+    expect(splitQuoted(forward)).toEqual({ body: forward, quoted: "" });
+  });
+});
+
+describe("hasQuotedHtml", () => {
+  it("detects Gmail, Apple/Thunderbird, Yahoo and Outlook quoting", () => {
+    expect(hasQuotedHtml('<div class="gmail_quote">x</div>')).toBe(true);
+    expect(hasQuotedHtml('<blockquote type="cite">x</blockquote>')).toBe(true);
+    expect(hasQuotedHtml('<div class="yahoo_quoted">x</div>')).toBe(true);
+    expect(hasQuotedHtml('<div id="divRplyFwdMsg">x</div>')).toBe(true);
+    expect(
+      hasQuotedHtml("<blockquote>a pull quote in a newsletter</blockquote>"),
+    ).toBe(false);
   });
 });
