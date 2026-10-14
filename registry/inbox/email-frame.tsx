@@ -99,7 +99,7 @@ export function buildSrcDoc(
     "form-action 'none'",
   ].join("; ");
 
-  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${escapeAttr(csp)}"><meta name="viewport" content="width=device-width,initial-scale=1"><base target="_blank"><style>html,body{margin:0;padding:0;background:#fff;color:#111;font:14px/1.5 system-ui,sans-serif;overflow-wrap:anywhere}img{max-width:100%;height:auto}</style></head><body>${body}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${escapeAttr(csp)}"><meta name="viewport" content="width=device-width,initial-scale=1"><base target="_blank"><style>html,body{margin:0;padding:0;background:#fff;color:#111;font:14px/1.5 system-ui,sans-serif;overflow-wrap:anywhere}body{display:flow-root}img{max-width:100%;height:auto}</style></head><body>${body}</body></html>`;
 }
 
 export function EmailFrame({
@@ -122,9 +122,11 @@ export function EmailFrame({
   }, [html, allowRemoteImages, onRemoteImagesBlocked]);
 
   const measure = React.useCallback(() => {
-    const doc = ref.current?.contentDocument;
-    if (!doc?.documentElement) return;
-    setHeight(Math.ceil(doc.documentElement.scrollHeight));
+    const body = ref.current?.contentDocument?.body;
+    if (!body) return;
+    // Measure the body, not the root: the root's scrollHeight is never smaller
+    // than the viewport, so it can't shrink when content does.
+    setHeight(Math.ceil(body.getBoundingClientRect().height));
   }, []);
 
   // Auto-size from the parent: the frame runs no script, so we observe its
@@ -132,9 +134,9 @@ export function EmailFrame({
   const onLoad = React.useCallback(() => {
     measure();
     const doc = ref.current?.contentDocument;
-    if (!doc?.documentElement) return;
+    if (!doc?.body) return;
     const observer = new ResizeObserver(measure);
-    observer.observe(doc.documentElement);
+    observer.observe(doc.body);
     doc.querySelectorAll("img").forEach((img) => {
       img.addEventListener("load", measure);
     });

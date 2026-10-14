@@ -1,5 +1,4 @@
-import { Inbox } from "@/registry/inbox/inbox";
-import { mockThreads } from "@/registry/inbox/mock";
+import { DemoInbox } from "@/components/demo-inbox";
 
 export default function Home() {
   return (
@@ -15,13 +14,7 @@ export default function Home() {
         </code>
       </header>
       <main>
-        <Inbox
-          threads={mockThreads}
-          onSend={async (draft) => {
-            "use server";
-            console.log("send", draft);
-          }}
-        />
+        <DemoInbox />
       </main>
     </div>
   );

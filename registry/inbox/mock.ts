@@ -2,7 +2,7 @@ import type { Thread } from "./types";
 
 // 1x1 orange PNG, used to demo `cid:` resolution without network access.
 const PIXEL =
-  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==";
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4WSz2HwAGbQKC0JqqYgAAAABJRU5ErkJggg==";
 
 export const mockThreads: Thread[] = [
   {

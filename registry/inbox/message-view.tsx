@@ -38,10 +38,13 @@ function MessageCard({
       <header className="flex items-start gap-3 border-b p-4">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">
-            {from}{" "}
-            <span className="font-normal text-muted-foreground">
-              &lt;{message.from.address}&gt;
-            </span>
+            {from}
+            {message.from.name && (
+              <span className="font-normal text-muted-foreground">
+                {" "}
+                &lt;{message.from.address}&gt;
+              </span>
+            )}
           </p>
           <p className="truncate text-xs text-muted-foreground">
             to {message.to.map((a) => a.name || a.address).join(", ")}
