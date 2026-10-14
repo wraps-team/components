@@ -5,8 +5,11 @@ import {
   groupByDate,
   groupIntoThreads,
   hasQuotedHtml,
+  isSnoozed,
+  labelsOf,
   normalizeSubject,
   snippetOf,
+  snoozePresets,
   splitQuoted,
 } from "./thread";
 import type { Message, Thread } from "./types";
@@ -162,6 +165,18 @@ describe("snippetOf", () => {
     expect(snippetOf(m)).toBe("Hi there");
     expect(snippetOf(msg({ text: "x".repeat(300) })).length).toBe(140);
   });
+
+  it("leaves quoted history out of the preview", () => {
+    const text = msg({
+      text: "Sounds good.\n\nOn Tue, Oct 12, 2026 at 7:40 AM You wrote:\n> earlier",
+    });
+    expect(snippetOf(text)).toBe("Sounds good.");
+    const html = msg({
+      text: null,
+      html: '<div>Thanks!</div><div class="gmail_quote"><blockquote>old</blockquote></div>',
+    });
+    expect(snippetOf(html)).toBe("Thanks!");
+  });
 });
 
 function thread(over: Partial<Thread>): Thread {
@@ -176,6 +191,70 @@ function thread(over: Partial<Thread>): Thread {
     ...over,
   };
 }
+
+describe("snooze and labels", () => {
+  const now = new Date(2026, 9, 14, 12, 0); // Wed Oct 14, noon local
+  const future = new Date(2026, 9, 16).toISOString();
+  const past = new Date(2026, 9, 13).toISOString();
+  const all = [
+    thread({ id: "a" }),
+    thread({ id: "b", snoozedUntil: future, unread: true }),
+    thread({ id: "c", snoozedUntil: past }),
+    thread({ id: "d", snoozedUntil: future, archived: true }),
+  ];
+
+  it("hides future-snoozed threads from the inbox and resurfaces expired ones", () => {
+    expect(filterThreads(all, "inbox", now).map((t) => t.id)).toEqual([
+      "a",
+      "c",
+    ]);
+    expect(filterThreads(all, "snoozed", now).map((t) => t.id)).toEqual(["b"]);
+    expect(isSnoozed(all[2] as Thread, now)).toBe(false);
+    expect(countUnread(all, "inbox", now)).toBe(0);
+    expect(countUnread(all, "snoozed", now)).toBe(1);
+  });
+
+  it("passes labels and snoozedUntil through groupIntoThreads state", () => {
+    const m = msg({ conversationId: "c1" });
+    const [t] = groupIntoThreads([m], {
+      state: { c1: { labels: ["work"], snoozedUntil: future } },
+    });
+    expect(t).toMatchObject({ labels: ["work"], snoozedUntil: future });
+  });
+
+  it("lists labels sorted and unique", () => {
+    expect(
+      labelsOf([
+        thread({ labels: ["work", "a"] }),
+        thread({ labels: ["work"] }),
+      ]),
+    ).toEqual(["a", "work"]);
+  });
+
+  it("builds presets in local time", () => {
+    const p = Object.fromEntries(
+      snoozePresets(now).map((x) => [x.id, x.until]),
+    );
+    expect(p.later?.getTime()).toBe(now.getTime() + 3 * 3600_000);
+    expect(p.tomorrow).toEqual(new Date(2026, 9, 15, 8));
+    expect(p.weekend).toEqual(new Date(2026, 9, 17, 8)); // Saturday
+    expect(p["next-week"]).toEqual(new Date(2026, 9, 19, 8)); // Monday
+  });
+
+  it("skips 'later today' in the evening and rolls the weekend forward on Saturday", () => {
+    expect(
+      snoozePresets(new Date(2026, 9, 14, 19)).some((x) => x.id === "later"),
+    ).toBe(false);
+    const sat = snoozePresets(new Date(2026, 9, 17, 9)).find(
+      (x) => x.id === "weekend",
+    );
+    expect(sat?.until).toEqual(new Date(2026, 9, 24, 8));
+    const mon = snoozePresets(new Date(2026, 9, 19, 9)).find(
+      (x) => x.id === "next-week",
+    );
+    expect(mon?.until).toEqual(new Date(2026, 9, 26, 8));
+  });
+});
 
 describe("folders", () => {
   const all = [

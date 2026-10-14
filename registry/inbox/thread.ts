@@ -17,15 +17,21 @@ function normalizeId(id: string): string {
   return id.trim().replace(/^<|>$/g, "").toLowerCase();
 }
 
-/** Plain-text preview of a message body. Output is text; render it as text. */
+/** Plain-text preview of a message's new text (quoted history excluded). Output is text; render it as text. */
 export function snippetOf(message: Message, max = 140): string {
-  const source =
-    message.text ??
-    (message.html ?? "")
+  let source: string;
+  if (message.text != null) {
+    source = splitQuoted(message.text).body;
+  } else {
+    let html = message.html ?? "";
+    const at = html.search(QUOTE_HTML_MARKERS);
+    if (at > 0) html = html.slice(0, html.lastIndexOf("<", at));
+    source = html
       .replace(/<(style|script)\b[\s\S]*?<\/\1\s*>/gi, " ")
       .replace(/<[^>]*>/g, " ")
       .replace(/&nbsp;/gi, " ")
       .replace(/&amp;/gi, "&");
+  }
   const flat = source.replace(/\s+/g, " ").trim();
   return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
 }
@@ -159,6 +165,8 @@ export function groupIntoThreads(
       unread: sorted.some((m) => m.direction === "inbound" && m.read === false),
       starred: persisted?.starred ?? false,
       archived: persisted?.archived ?? false,
+      labels: persisted?.labels ?? [],
+      snoozedUntil: persisted?.snoozedUntil ?? null,
       messages: sorted.map((m) => ({ ...m, threadId: id })),
     });
   }
@@ -167,19 +175,86 @@ export function groupIntoThreads(
   );
 }
 
-export function filterThreads(threads: Thread[], folder: Folder): Thread[] {
+export function isSnoozed(thread: Thread, now: Date): boolean {
+  return (
+    Boolean(thread.snoozedUntil) &&
+    Date.parse(thread.snoozedUntil as string) > now.getTime()
+  );
+}
+
+/**
+ * Threads for a folder. Snoozed threads leave the inbox until `snoozedUntil`
+ * passes; `now` defaults to the current time.
+ */
+export function filterThreads(
+  threads: Thread[],
+  folder: Folder,
+  now: Date = new Date(),
+): Thread[] {
   switch (folder) {
     case "inbox":
-      return threads.filter((t) => !t.archived);
+      return threads.filter((t) => !t.archived && !isSnoozed(t, now));
     case "starred":
       return threads.filter((t) => t.starred);
+    case "snoozed":
+      return threads.filter((t) => !t.archived && isSnoozed(t, now));
     case "archived":
       return threads.filter((t) => t.archived);
   }
 }
 
-export function countUnread(threads: Thread[], folder: Folder): number {
-  return filterThreads(threads, folder).filter((t) => t.unread).length;
+export function countUnread(
+  threads: Thread[],
+  folder: Folder,
+  now: Date = new Date(),
+): number {
+  return filterThreads(threads, folder, now).filter((t) => t.unread).length;
+}
+
+/** Every label in use, sorted. */
+export function labelsOf(threads: Thread[]): string[] {
+  return [...new Set(threads.flatMap((t) => t.labels ?? []))].sort((a, b) =>
+    a.localeCompare(b),
+  );
+}
+
+export interface SnoozePreset {
+  id: "later" | "tomorrow" | "weekend" | "next-week";
+  label: string;
+  until: Date;
+}
+
+/**
+ * Snooze choices relative to `now`, in the viewer's local time: later today
+ * (+3h, only before 6pm), tomorrow 8am, this weekend (Saturday 8am), next
+ * week (Monday 8am).
+ */
+export function snoozePresets(now: Date): SnoozePreset[] {
+  const at8 = (daysAhead: number) => {
+    const d = new Date(now);
+    d.setDate(d.getDate() + daysAhead);
+    d.setHours(8, 0, 0, 0);
+    return d;
+  };
+  const presets: SnoozePreset[] = [];
+  if (now.getHours() < 18) {
+    presets.push({
+      id: "later",
+      label: "Later today",
+      until: new Date(now.getTime() + 3 * 60 * 60 * 1000),
+    });
+  }
+  presets.push({ id: "tomorrow", label: "Tomorrow", until: at8(1) });
+  const day = now.getDay(); // 0 Sun … 6 Sat
+  const toSaturday = day === 6 ? 7 : (6 - day + 7) % 7;
+  presets.push({
+    id: "weekend",
+    label: "This weekend",
+    until: at8(toSaturday),
+  });
+  const toMonday = (1 - day + 7) % 7 || 7;
+  presets.push({ id: "next-week", label: "Next week", until: at8(toMonday) });
+  return presets;
 }
 
 export interface ThreadGroup {

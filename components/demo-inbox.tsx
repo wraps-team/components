@@ -2,7 +2,12 @@
 
 import * as React from "react";
 import { Inbox } from "@/registry/inbox/inbox";
-import { MOCK_NOW, mockMessages, mockState } from "@/registry/inbox/mock";
+import {
+  MOCK_NOW,
+  mockLabels,
+  mockMessages,
+  mockState,
+} from "@/registry/inbox/mock";
 import { groupIntoThreads } from "@/registry/inbox/thread";
 import type { Thread, ThreadAction, ThreadState } from "@/registry/inbox/types";
 
@@ -41,10 +46,25 @@ export function DemoInbox() {
     setState((s) => ({ ...s, [thread.id]: { ...s[thread.id], ...patch } }));
   }
 
+  function patchState(thread: Thread, patch: ThreadState) {
+    setState((s) => ({ ...s, [thread.id]: { ...s[thread.id], ...patch } }));
+  }
+
   return (
     <Inbox
       threads={threads}
       now={MOCK_NOW}
+      labels={mockLabels}
+      onLabel={(thread, label, applied) =>
+        patchState(thread, {
+          labels: applied
+            ? [...(thread.labels ?? []), label]
+            : (thread.labels ?? []).filter((l) => l !== label),
+        })
+      }
+      onSnooze={(thread, until) =>
+        patchState(thread, { snoozedUntil: until?.toISOString() ?? null })
+      }
       onAction={onAction}
       onSend={async (draft) => {
         console.log("send", draft);

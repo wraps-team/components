@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { LabelChips, SnoozeBadge } from "./badges";
 import { useFormattedDate } from "./format";
 import { groupByDate } from "./thread";
 import type { Thread, ThreadAction } from "./types";
@@ -223,6 +224,14 @@ export function ThreadList({
                     <span className="line-clamp-1 text-xs text-muted-foreground">
                       {thread.snippet}
                     </span>
+                    {(thread.labels?.length || thread.snoozedUntil) && (
+                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <LabelChips labels={thread.labels} />
+                        {thread.snoozedUntil && (
+                          <SnoozeBadge until={thread.snoozedUntil} />
+                        )}
+                      </span>
+                    )}
                   </button>
                   {onAction && (
                     <div className="absolute top-2 right-2 hidden items-center gap-0.5 rounded-md border bg-accent p-0.5 shadow-xs group-focus-within:flex group-hover:flex">

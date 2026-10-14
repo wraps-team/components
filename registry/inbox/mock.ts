@@ -157,9 +157,16 @@ export const mockMessages: Message[] = [
 ];
 
 /** Persisted thread state, keyed by thread id (the earliest message's id). */
+export const mockLabels = ["work", "personal", "receipts"];
+
 export const mockState: Record<string, ThreadState> = {
   "m-welcome": { archived: true },
-  "m-launch-1": { starred: true },
+  "m-launch-1": { starred: true, labels: ["work"] },
+  "m-receipt": { labels: ["receipts"] },
+  "m-receipt-old": {
+    snoozedUntil: "2026-10-16T08:00:00.000Z",
+    labels: ["receipts"],
+  },
 };
 
 export const mockThreads = groupIntoThreads(mockMessages, {

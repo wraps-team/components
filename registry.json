@@ -20,10 +20,11 @@
       "name": "inbox",
       "type": "registry:block",
       "title": "Inbox",
-      "description": "Backend-agnostic email inbox: threading (groupIntoThreads), folders, read/archive/star, date-grouped thread list, collapsible message view, composer, and the Inbox block that wires them together. Takes typed props; bring your own data source.",
+      "description": "Backend-agnostic email inbox: threading (groupIntoThreads), folders, read/archive/star/snooze/labels, date-grouped thread list, collapsible message view, composer, and the Inbox block that wires them together. Takes typed props; bring your own data source.",
       "dependencies": ["lucide-react"],
       "registryDependencies": [
         "button",
+        "dropdown-menu",
         "input",
         "textarea",
         "https://components.wraps.dev/r/email-frame.json"
@@ -48,6 +49,11 @@
           "path": "registry/inbox/thread-list.tsx",
           "type": "registry:component",
           "target": "components/inbox/thread-list.tsx"
+        },
+        {
+          "path": "registry/inbox/badges.tsx",
+          "type": "registry:component",
+          "target": "components/inbox/badges.tsx"
         },
         {
           "path": "registry/inbox/message-view.tsx",

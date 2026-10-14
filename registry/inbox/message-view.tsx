@@ -4,17 +4,35 @@ import {
   Archive,
   ArchiveRestore,
   ChevronsUpDown,
+  Clock,
   Mail,
   MailOpen,
   Paperclip,
   Star,
+  Tag,
 } from "lucide-react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { LabelChips, SnoozeBadge } from "./badges";
 import { EmailFrame } from "./email-frame";
 import { useFormattedDate } from "./format";
-import { hasQuotedHtml, snippetOf, splitQuoted } from "./thread";
+import {
+  hasQuotedHtml,
+  isSnoozed,
+  snippetOf,
+  snoozePresets,
+  splitQuoted,
+} from "./thread";
 import type { Message, Thread, ThreadAction } from "./types";
 
 export interface MessageViewProps {
@@ -22,6 +40,13 @@ export interface MessageViewProps {
   onReply?: (message: Message) => void;
   /** Toolbar actions: archive, mark read/unread, star. */
   onAction?: (thread: Thread, action: ThreadAction) => void;
+  /** Labels that can be applied. Enables the label menu with `onLabel`. */
+  labels?: string[];
+  onLabel?: (thread: Thread, label: string, applied: boolean) => void;
+  /** Snooze until a time, or `null` to unsnooze. Enables the snooze menu. */
+  onSnooze?: (thread: Thread, until: Date | null) => void;
+  /** Reference time for snooze presets. Defaults to the current time. */
+  now?: Date;
   className?: string;
 }
 
@@ -228,10 +253,109 @@ function ToolbarButton({
 /**
  * Pass `key={thread.id}` so expansion state resets when the thread changes.
  */
+function SnoozeMenu({
+  thread,
+  onSnooze,
+  now,
+}: {
+  thread: Thread;
+  onSnooze: (thread: Thread, until: Date | null) => void;
+  now?: Date;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label="Snooze" title="Snooze">
+          <Clock />
+        </Button>
+      </DropdownMenuTrigger>
+      <SnoozeMenuContent thread={thread} onSnooze={onSnooze} now={now} />
+    </DropdownMenu>
+  );
+}
+
+// Rendered only while the menu is open, so reading the clock here never
+// affects server rendering.
+function SnoozeMenuContent({
+  thread,
+  onSnooze,
+  now,
+}: {
+  thread: Thread;
+  onSnooze: (thread: Thread, until: Date | null) => void;
+  now?: Date;
+}) {
+  const at = now ?? new Date();
+  return (
+    <DropdownMenuContent align="end">
+      <DropdownMenuLabel>Snooze until…</DropdownMenuLabel>
+      {snoozePresets(at).map((preset) => (
+        <DropdownMenuItem
+          key={preset.id}
+          onSelect={() => onSnooze(thread, preset.until)}
+        >
+          {preset.label}
+          <span className="ml-auto pl-4 text-xs text-muted-foreground">
+            {preset.until.toLocaleString([], {
+              weekday: "short",
+              hour: "numeric",
+              minute: "2-digit",
+            })}
+          </span>
+        </DropdownMenuItem>
+      ))}
+      {isSnoozed(thread, at) && (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => onSnooze(thread, null)}>
+            Unsnooze
+          </DropdownMenuItem>
+        </>
+      )}
+    </DropdownMenuContent>
+  );
+}
+
+function LabelMenu({
+  thread,
+  labels,
+  onLabel,
+}: {
+  thread: Thread;
+  labels: string[];
+  onLabel: (thread: Thread, label: string, applied: boolean) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label="Labels" title="Labels">
+          <Tag />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuLabel>Labels</DropdownMenuLabel>
+        {labels.map((label) => (
+          <DropdownMenuCheckboxItem
+            key={label}
+            checked={thread.labels?.includes(label) ?? false}
+            onCheckedChange={(checked) => onLabel(thread, label, checked)}
+          >
+            {label}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function MessageView({
   thread,
   onReply,
   onAction,
+  labels,
+  onLabel,
+  onSnooze,
+  now,
   className,
 }: MessageViewProps) {
   const [expanded, setExpanded] = React.useState(() => initialExpanded(thread));
@@ -249,9 +373,17 @@ export function MessageView({
   return (
     <div className={cn("flex flex-col gap-4 overflow-y-auto p-4", className)}>
       <div className="flex items-start gap-2">
-        <h2 className="min-w-0 flex-1 text-lg font-semibold">
-          {thread.subject}
-        </h2>
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <h2 className="text-lg font-semibold">{thread.subject}</h2>
+          {(thread.labels?.length || thread.snoozedUntil) && (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <LabelChips labels={thread.labels} />
+              {thread.snoozedUntil && (
+                <SnoozeBadge until={thread.snoozedUntil} />
+              )}
+            </div>
+          )}
+        </div>
         <div className="flex shrink-0 items-center">
           {!allExpanded && (
             <ToolbarButton
@@ -262,6 +394,12 @@ export function MessageView({
             >
               <ChevronsUpDown />
             </ToolbarButton>
+          )}
+          {onLabel && labels && labels.length > 0 && (
+            <LabelMenu thread={thread} labels={labels} onLabel={onLabel} />
+          )}
+          {onSnooze && (
+            <SnoozeMenu thread={thread} onSnooze={onSnooze} now={now} />
           )}
           {onAction && (
             <>

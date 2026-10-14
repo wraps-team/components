@@ -56,6 +56,9 @@ export interface Thread {
   unread: boolean;
   starred?: boolean;
   archived?: boolean;
+  labels?: string[];
+  /** ISO 8601. While in the future the thread is hidden from the inbox. */
+  snoozedUntil?: string | null;
   messages: Message[];
 }
 
@@ -63,6 +66,8 @@ export interface Thread {
 export interface ThreadState {
   starred?: boolean;
   archived?: boolean;
+  labels?: string[];
+  snoozedUntil?: string | null;
 }
 
 export type ThreadAction =
@@ -73,7 +78,7 @@ export type ThreadAction =
   | "star"
   | "unstar";
 
-export type Folder = "inbox" | "starred" | "archived";
+export type Folder = "inbox" | "starred" | "snoozed" | "archived";
 
 export interface Draft {
   to: string;
