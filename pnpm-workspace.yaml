@@ -3,8 +3,9 @@ overrides:
   '@types/react': '19.1.2'
   '@types/react-dom': '19.1.2'
 
-onlyBuiltDependencies:
-  - sharp
-
-ignoredBuiltDependencies:
-  - msw
+# Dependency build scripts must be decided explicitly (pnpm 11 fails the
+# install otherwise). sharp is Next's image optimizer; msw is a shadcn CLI
+# dependency whose postinstall we don't need.
+allowBuilds:
+  sharp: true
+  msw: false
