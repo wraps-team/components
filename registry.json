@@ -76,6 +76,41 @@
           "target": "components/inbox/mock.ts"
         }
       ]
+    },
+    {
+      "name": "inbox-wraps",
+      "type": "registry:block",
+      "title": "Inbox: Wraps adapter",
+      "description": "Connects the Inbox to a Wraps inbox (SES inbound \u2192 S3): a request handler with a required authorize callback, a useWrapsInbox hook, and a Next.js route that denies everything until you add your auth check. Mailbox state (read, archive, star, labels, snooze) is stored client-side by default.",
+      "dependencies": ["@wraps.dev/email"],
+      "registryDependencies": ["https://components.wraps.dev/r/inbox.json"],
+      "files": [
+        {
+          "path": "registry/inbox/wraps/map.ts",
+          "type": "registry:lib",
+          "target": "components/inbox/wraps/map.ts"
+        },
+        {
+          "path": "registry/inbox/wraps/state.ts",
+          "type": "registry:lib",
+          "target": "components/inbox/wraps/state.ts"
+        },
+        {
+          "path": "registry/inbox/wraps/server.ts",
+          "type": "registry:lib",
+          "target": "components/inbox/wraps/server.ts"
+        },
+        {
+          "path": "registry/inbox/wraps/use-wraps-inbox.ts",
+          "type": "registry:hook",
+          "target": "components/inbox/wraps/use-wraps-inbox.ts"
+        },
+        {
+          "path": "registry/inbox/wraps/route.ts",
+          "type": "registry:file",
+          "target": "app/api/inbox/route.ts"
+        }
+      ]
     }
   ]
 }

@@ -1,9 +1,27 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
   "files": {
-    "includes": ["**", "!.next", "!public/r", "!node_modules", "!next-env.d.ts"]
+    "includes": [
+      "**",
+      "!.next",
+      "!public/r",
+      "!node_modules",
+      "!next-env.d.ts",
+      "!registry/inbox/wraps/route.ts"
+    ]
   },
-  "formatter": { "indentStyle": "space" },
-  "linter": { "enabled": true, "rules": { "preset": "none" } },
-  "css": { "parser": { "tailwindDirectives": true } }
+  "formatter": {
+    "indentStyle": "space"
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "none"
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  }
 }
