@@ -1,12 +1,13 @@
 "use client";
 
-import { PenSquare } from "lucide-react";
+import { PenSquare, Search } from "lucide-react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Composer } from "./composer";
 import { MessageView } from "./message-view";
-import { countUnread, filterThreads, labelsOf } from "./thread";
+import { countUnread, filterThreads, labelsOf, searchThreads } from "./thread";
 import { ThreadList } from "./thread-list";
 import type { Draft, Folder, Message, Thread, ThreadAction } from "./types";
 
@@ -24,6 +25,14 @@ export interface InboxProps {
   onLabel?: (thread: Thread, label: string, applied: boolean) => void;
   /** Snooze until a time, or `null` to unsnooze. */
   onSnooze?: (thread: Thread, until: Date | null) => void;
+  /**
+   * `"local"` (default) filters `threads` in the browser with `searchThreads`.
+   * `"remote"` leaves filtering to you: watch `onQueryChange` and pass the
+   * matching threads (debounce it; it fires on every keystroke).
+   */
+  search?: "local" | "remote";
+  defaultQuery?: string;
+  onQueryChange?: (query: string) => void;
   /** Called when a thread is opened. */
   onOpenThread?: (thread: Thread) => void;
   defaultFolder?: Folder;
@@ -48,6 +57,9 @@ export function Inbox({
   labels,
   onLabel,
   onSnooze,
+  search = "local",
+  defaultQuery = "",
+  onQueryChange,
   onOpenThread,
   defaultFolder = "inbox",
   now,
@@ -66,10 +78,20 @@ export function Inbox({
     return () => clearInterval(id);
   }, [now]);
   const at = clock ?? new Date(0);
-  const visible = React.useMemo(
-    () => filterThreads(threads, folder, at),
-    [threads, folder, at],
-  );
+  const [query, setQuery] = React.useState(defaultQuery);
+  const searching = query.trim() !== "";
+  const rootRef = React.useRef<HTMLDivElement>(null);
+  const searchRef = React.useRef<HTMLInputElement>(null);
+  // While searching, results span every folder (like Gmail).
+  const visible = React.useMemo(() => {
+    if (!searching) return filterThreads(threads, folder, at);
+    return search === "remote" ? threads : searchThreads(threads, query, at);
+  }, [threads, folder, at, searching, search, query]);
+
+  function changeQuery(next: string) {
+    setQuery(next);
+    onQueryChange?.(next);
+  }
   const labelOptions = React.useMemo(
     () => labels ?? labelsOf(threads),
     [labels, threads],
@@ -133,8 +155,21 @@ export function Inbox({
     setCompose(null);
   }
 
+  function onRootKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    const target = event.target as HTMLElement;
+    const typing =
+      target.closest("input, textarea, select, [contenteditable='true']") !==
+      null;
+    if (event.key === "/" && !typing && !event.metaKey && !event.ctrlKey) {
+      event.preventDefault();
+      searchRef.current?.focus();
+    }
+  }
+
   return (
     <div
+      ref={rootRef}
+      onKeyDown={onRootKeyDown}
       className={cn(
         "grid h-[640px] grid-cols-[320px_1fr] overflow-hidden rounded-lg border bg-background",
         className,
@@ -142,11 +177,36 @@ export function Inbox({
     >
       <aside className="flex min-h-0 flex-col border-r">
         <div className="flex items-center justify-between border-b p-3">
-          <h2 className="text-sm font-semibold">{current?.label}</h2>
+          <h2 className="text-sm font-semibold">
+            {searching ? "Search results" : current?.label}
+          </h2>
           <Button size="sm" onClick={() => setCompose({ defaults: {} })}>
             <PenSquare />
             Compose
           </Button>
+        </div>
+        <div className="relative border-b p-2">
+          <Search className="pointer-events-none absolute top-1/2 left-4 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            ref={searchRef}
+            type="search"
+            aria-label="Search mail"
+            placeholder="Search mail ( / )"
+            value={query}
+            onChange={(e) => changeQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                changeQuery("");
+                e.currentTarget.blur();
+              } else if (e.key === "ArrowDown") {
+                e.preventDefault();
+                rootRef.current
+                  ?.querySelector<HTMLElement>("[data-thread-row]")
+                  ?.focus();
+              }
+            }}
+            className="h-8 pl-8 text-xs"
+          />
         </div>
         <nav aria-label="Folders" className="flex gap-1 border-b p-2">
           {FOLDERS.map((f) => {
@@ -155,11 +215,14 @@ export function Inbox({
               <button
                 key={f.id}
                 type="button"
-                aria-current={folder === f.id || undefined}
-                onClick={() => setFolder(f.id)}
+                aria-current={(!searching && folder === f.id) || undefined}
+                onClick={() => {
+                  setFolder(f.id);
+                  if (searching) changeQuery("");
+                }}
                 className={cn(
                   "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-                  folder === f.id && "bg-accent text-foreground",
+                  !searching && folder === f.id && "bg-accent text-foreground",
                 )}
               >
                 {f.label}
@@ -179,7 +242,7 @@ export function Inbox({
           onSelect={open}
           onAction={onAction ? act : undefined}
           now={now}
-          empty={current?.empty}
+          empty={searching ? "No matches" : current?.empty}
         />
       </aside>
       <section className="flex min-h-0 flex-col overflow-y-auto">

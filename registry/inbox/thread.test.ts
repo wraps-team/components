@@ -8,6 +8,8 @@ import {
   isSnoozed,
   labelsOf,
   normalizeSubject,
+  parseQuery,
+  searchThreads,
   snippetOf,
   snoozePresets,
   splitQuoted,
@@ -349,5 +351,122 @@ describe("hasQuotedHtml", () => {
     expect(
       hasQuotedHtml("<blockquote>a pull quote in a newsletter</blockquote>"),
     ).toBe(false);
+  });
+});
+
+describe("parseQuery", () => {
+  it("parses operators, phrases, negation and dates", () => {
+    const q = parseQuery(
+      'from:sam subject:"launch plan" -spam "exact phrase" is:unread has:attachment label:work after:2026-10-01 plain',
+    );
+    expect(q).toMatchObject({
+      from: ["sam"],
+      subject: ["launch plan"],
+      excluded: ["spam"],
+      terms: ["exact phrase", "plain"],
+      is: ["unread"],
+      has: ["attachment"],
+      label: ["work"],
+    });
+    expect(q.after).toBe(new Date(2026, 9, 1).getTime());
+  });
+
+  it("treats unknown operators and bad dates as text or ignores them", () => {
+    expect(parseQuery("foo:bar").terms).toEqual(["foo:bar"]);
+    expect(parseQuery("before:nonsense").before).toBeUndefined();
+    expect(parseQuery("   ")).toMatchObject({ terms: [], excluded: [] });
+  });
+});
+
+describe("searchThreads", () => {
+  const sam = { address: "sam@example.com", name: "Sam" };
+  const mk = (
+    id: string,
+    over: Partial<Thread> & {
+      text?: string;
+      attach?: boolean;
+      from?: typeof sam;
+    } = {},
+  ): Thread => {
+    const { text, attach, from, ...rest } = over;
+    return thread({
+      id,
+      subject: `Subject ${id}`,
+      participants: [from ?? sam],
+      messages: [
+        {
+          id: `m${id}`,
+          threadId: id,
+          direction: "inbound",
+          from: from ?? sam,
+          to: [{ address: "me@example.com" }],
+          subject: `Subject ${id}`,
+          date: "2026-10-10T12:00:00.000Z",
+          text: text ?? "body",
+          attachments: attach
+            ? [
+                {
+                  id: "a",
+                  filename: "f.pdf",
+                  contentType: "application/pdf",
+                  size: 1,
+                },
+              ]
+            : [],
+        },
+      ],
+      lastMessageAt: "2026-10-10T12:00:00.000Z",
+      ...rest,
+    });
+  };
+  const all = [
+    mk("1", {
+      text: "the quarterly invoice is attached",
+      attach: true,
+      labels: ["work"],
+      unread: true,
+    }),
+    mk("2", {
+      text: "lunch on friday?",
+      from: { address: "pat@other.com", name: "Pat" },
+      starred: true,
+    }),
+    mk("3", {
+      text: "invoice dispute",
+      archived: true,
+      lastMessageAt: "2026-08-01T12:00:00.000Z",
+    }),
+  ];
+  const ids = (q: string) => searchThreads(all, q).map((t) => t.id);
+
+  it("returns everything for an empty query", () => {
+    expect(ids("")).toEqual(["1", "2", "3"]);
+  });
+  it("matches free text across subject, people and bodies, ANDed", () => {
+    expect(ids("invoice")).toEqual(["1", "3"]);
+    expect(ids("invoice quarterly")).toEqual(["1"]);
+    expect(ids("PAT")).toEqual(["2"]);
+    expect(ids('"lunch on friday"')).toEqual(["2"]);
+  });
+  it("supports exclusion", () => {
+    expect(ids("invoice -dispute")).toEqual(["1"]);
+  });
+  it("supports from:, to:, subject:, label:", () => {
+    expect(ids("from:pat")).toEqual(["2"]);
+    expect(ids("to:me@example.com")).toEqual(["1", "2", "3"]);
+    expect(ids("subject:3")).toEqual(["3"]);
+    expect(ids("label:work")).toEqual(["1"]);
+  });
+  it("supports is: and has:", () => {
+    expect(ids("is:unread")).toEqual(["1"]);
+    expect(ids("is:read")).toEqual(["2", "3"]);
+    expect(ids("is:starred")).toEqual(["2"]);
+    expect(ids("is:archived")).toEqual(["3"]);
+    expect(ids("has:attachment")).toEqual(["1"]);
+    expect(ids("has:nonsense")).toEqual([]);
+  });
+  it("supports before: and after:", () => {
+    expect(ids("before:2026-09-01")).toEqual(["3"]);
+    expect(ids("after:2026-09-01")).toEqual(["1", "2"]);
   });
 });

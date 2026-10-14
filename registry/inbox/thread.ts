@@ -348,3 +348,180 @@ const QUOTE_HTML_MARKERS =
 export function hasQuotedHtml(html: string): boolean {
   return QUOTE_HTML_MARKERS.test(html);
 }
+
+export interface ParsedQuery {
+  /** Free text; every term must appear in the subject, people or message text. */
+  terms: string[];
+  /** Terms (or phrases) that must not appear. */
+  excluded: string[];
+  from: string[];
+  to: string[];
+  subject: string[];
+  label: string[];
+  is: string[];
+  has: string[];
+  /** Epoch ms; threads whose newest message is before / on-or-after. */
+  before?: number;
+  after?: number;
+}
+
+function tokenize(query: string): string[] {
+  const tokens: string[] = [];
+  const re = /(-?[a-z]+:)?(?:"([^"]*)"|(\S+))/gi;
+  for (const m of query.matchAll(re)) {
+    const prefix = m[1] ?? "";
+    const value = m[2] ?? m[3] ?? "";
+    // Quoted phrases keep their quotes so they stay one term.
+    tokens.push(
+      m[2] !== undefined ? `${prefix}"${value}"` : `${prefix}${value}`,
+    );
+  }
+  return tokens;
+}
+
+function parseDay(value: string): number | undefined {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!m) return undefined;
+  const t = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime();
+  return Number.isNaN(t) ? undefined : t;
+}
+
+/**
+ * Parse a search query. Operators: `from:` `to:` `subject:` `label:`
+ * `is:unread|read|starred|archived|snoozed` `has:attachment`
+ * `before:YYYY-MM-DD` `after:YYYY-MM-DD`; `"quoted phrases"`; a leading `-`
+ * excludes a term. Unknown `key:value` pairs are treated as plain text.
+ */
+export function parseQuery(query: string): ParsedQuery {
+  const out: ParsedQuery = {
+    terms: [],
+    excluded: [],
+    from: [],
+    to: [],
+    subject: [],
+    label: [],
+    is: [],
+    has: [],
+  };
+  const strip = (v: string) => v.replace(/^"|"$/g, "").toLowerCase();
+  for (const token of tokenize(query)) {
+    const negated = token.startsWith("-") && token.length > 1;
+    const body = negated ? token.slice(1) : token;
+    const op = /^([a-z]+):(.*)$/i.exec(body);
+    const key = op?.[1]?.toLowerCase();
+    const value = strip(op?.[2] ?? "");
+    if (key && value) {
+      switch (key) {
+        case "from":
+        case "to":
+        case "subject":
+        case "label":
+        case "is":
+        case "has":
+          if (!negated) out[key].push(value);
+          else out.excluded.push(value);
+          continue;
+        case "before": {
+          const t = parseDay(value);
+          if (t !== undefined && !negated) out.before = t;
+          continue;
+        }
+        case "after": {
+          const t = parseDay(value);
+          if (t !== undefined && !negated) out.after = t;
+          continue;
+        }
+      }
+    }
+    const term = strip(body);
+    if (!term) continue;
+    (negated ? out.excluded : out.terms).push(term);
+  }
+  return out;
+}
+
+function personText(a: { address: string; name?: string }): string {
+  return `${a.name ?? ""} ${a.address}`.toLowerCase();
+}
+
+function bodyText(m: Message): string {
+  return (
+    m.text ??
+    (m.html ?? "")
+      .replace(/<(style|script)\b[\s\S]*?<\/\1\s*>/gi, " ")
+      .replace(/<[^>]*>/g, " ")
+  ).toLowerCase();
+}
+
+/**
+ * Filter threads by a query (see `parseQuery`). All conditions must match;
+ * an empty query returns every thread. Order is preserved.
+ */
+export function searchThreads(
+  threads: Thread[],
+  query: string,
+  now: Date = new Date(),
+): Thread[] {
+  const q = parseQuery(query);
+  const unconstrained =
+    !q.terms.length &&
+    !q.excluded.length &&
+    !q.from.length &&
+    !q.to.length &&
+    !q.subject.length &&
+    !q.label.length &&
+    !q.is.length &&
+    !q.has.length &&
+    q.before === undefined &&
+    q.after === undefined;
+  if (unconstrained) return threads;
+
+  return threads.filter((t) => {
+    const last = Date.parse(t.lastMessageAt);
+    if (q.before !== undefined && !(last < q.before)) return false;
+    if (q.after !== undefined && !(last >= q.after)) return false;
+
+    for (const flag of q.is) {
+      const ok =
+        (flag === "unread" && t.unread) ||
+        (flag === "read" && !t.unread) ||
+        (flag === "starred" && t.starred) ||
+        (flag === "archived" && t.archived) ||
+        (flag === "snoozed" && isSnoozed(t, now));
+      if (!ok) return false;
+    }
+    if (
+      q.has.some(
+        (h) =>
+          h !== "attachment" ||
+          !t.messages.some((m) => m.attachments.some((a) => !a.inline)),
+      )
+    )
+      return false;
+
+    const labels = (t.labels ?? []).map((l) => l.toLowerCase());
+    if (q.label.some((l) => !labels.includes(l))) return false;
+
+    const subject = t.subject.toLowerCase();
+    if (q.subject.some((s) => !subject.includes(s))) return false;
+
+    const senders = t.messages.map((m) => personText(m.from));
+    if (q.from.some((f) => !senders.some((s) => s.includes(f)))) return false;
+    const recipients = t.messages.flatMap((m) =>
+      [...m.to, ...(m.cc ?? [])].map(personText),
+    );
+    if (q.to.some((r) => !recipients.some((s) => s.includes(r)))) return false;
+
+    if (q.terms.length || q.excluded.length) {
+      const haystack = [
+        subject,
+        ...t.participants.map(personText),
+        ...(t.labels ?? []),
+        ...t.messages.map(bodyText),
+      ].join("\n");
+      if (q.terms.some((term) => !haystack.includes(term))) return false;
+      if (q.excluded.some((term) => haystack.includes(term))) return false;
+    }
+    return true;
+  });
+}
