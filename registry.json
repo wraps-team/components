@@ -1,0 +1,70 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry.json",
+  "name": "wraps-components",
+  "homepage": "https://components.wraps.dev",
+  "items": [
+    {
+      "name": "email-frame",
+      "type": "registry:component",
+      "title": "Email Frame",
+      "description": "Sandboxed iframe renderer for untrusted HTML email: no scripts, strict CSP, remote images blocked by default, cid: image rewriting, and auto-sizing.",
+      "files": [
+        {
+          "path": "registry/inbox/email-frame.tsx",
+          "type": "registry:component",
+          "target": "components/inbox/email-frame.tsx"
+        }
+      ]
+    },
+    {
+      "name": "inbox",
+      "type": "registry:block",
+      "title": "Inbox",
+      "description": "Backend-agnostic email inbox: thread list, message view, composer, and the Inbox block that wires them together. Takes typed props; bring your own data source.",
+      "dependencies": ["lucide-react"],
+      "registryDependencies": [
+        "button",
+        "input",
+        "textarea",
+        "https://components.wraps.dev/r/email-frame.json"
+      ],
+      "files": [
+        {
+          "path": "registry/inbox/types.ts",
+          "type": "registry:lib",
+          "target": "components/inbox/types.ts"
+        },
+        {
+          "path": "registry/inbox/format.ts",
+          "type": "registry:lib",
+          "target": "components/inbox/format.ts"
+        },
+        {
+          "path": "registry/inbox/thread-list.tsx",
+          "type": "registry:component",
+          "target": "components/inbox/thread-list.tsx"
+        },
+        {
+          "path": "registry/inbox/message-view.tsx",
+          "type": "registry:component",
+          "target": "components/inbox/message-view.tsx"
+        },
+        {
+          "path": "registry/inbox/composer.tsx",
+          "type": "registry:component",
+          "target": "components/inbox/composer.tsx"
+        },
+        {
+          "path": "registry/inbox/inbox.tsx",
+          "type": "registry:component",
+          "target": "components/inbox/inbox.tsx"
+        },
+        {
+          "path": "registry/inbox/mock.ts",
+          "type": "registry:lib",
+          "target": "components/inbox/mock.ts"
+        }
+      ]
+    }
+  ]
+}
